@@ -243,6 +243,28 @@ class ApplyInternalLinksParams(BaseModel):
     )
 
 
+class BatchApplyPlanItem(BaseModel):
+    """One reviewed plan included in a single explicit batch confirmation."""
+    plan_id: str = Field(..., description="Pending-review linking plan id to record as applied.")
+    applied_post_ids: list[str] = Field(
+        default_factory=list,
+        description="Post ids from this plan whose diffs Webbee actually wrote successfully.",
+    )
+
+
+class ApplyInternalLinksBatchParams(BaseModel):
+    """Explicit batch confirmation. No pending plan is selected implicitly."""
+    plans: list[BatchApplyPlanItem] = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description=(
+            "Explicit reviewed plans to mark as applied after their exact WordPress diffs were written. "
+            "Every id must still be pending_review; the operation is all-or-nothing for audit safety."
+        ),
+    )
+
+
 class RejectLinkingPlanParams(BaseModel):
     plan_id: str = Field(..., description="Linking plan id to reject without applying.")
 

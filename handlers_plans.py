@@ -15,7 +15,7 @@ from imperal_sdk import ActionResult
 from app import chat
 from schemas import (
     PreviewInternalLinksParams, GetLinkingPlanParams, ListLinkingPlansParams,
-    ApplyInternalLinksParams, RejectLinkingPlanParams, RollbackLinkingRunParams,
+    ApplyInternalLinksParams, ApplyInternalLinksBatchParams, RejectLinkingPlanParams, RollbackLinkingRunParams,
     ListLinkingRunsParams,
     LinkingPlan, LinkingPlanList, LinkingRun, LinkingRunList,
 )
@@ -202,6 +202,69 @@ async def apply_internal_links(ctx, params: ApplyInternalLinksParams) -> ActionR
 
     applied_n = len(params.applied_post_ids) or data.get("posts_touched_count", 0)
     return ActionResult.success(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', params.plan_id)}", **data), summary=f"Plan {params.plan_id} applied ({applied_n} post(s) written).")
+
+
+@chat.function(
+    "apply_internal_links_batch",
+    description=(
+        "Record several explicitly named pending_review plans as applied in one batch -- call ONLY AFTER "
+        "Webbee has written every exact diff for every listed plan via wordpress-hub.replace_post_content_text. "
+        "This never writes site content itself and never selects plans implicitly: the caller must list every "
+        "plan_id. The batch validates all plans before changing any audit status."
+    ),
+    action_type="write",
+    data_model=LinkingPlanList,
+    effects=["ile.plans_applied_batch"],
+    event="internal-linking-engine.apply_internal_links_batch",
+)
+async def apply_internal_links_batch(ctx, params: ApplyInternalLinksBatchParams) -> ActionResult:
+    """Mark an explicit set of written review-first plans applied as one batch."""
+    requested = params.plans
+    plan_ids = [item.plan_id for item in requested]
+    if len(set(plan_ids)) != len(plan_ids):
+        return ActionResult.error(
+            "Each plan_id may appear only once in a batch.", retryable=False, code="DUPLICATE_PLAN_ID",
+        )
+
+    docs: list[tuple[object, object]] = []
+    for item in requested:
+        doc = await ctx.store.get(storage.PLANS_COLLECTION, item.plan_id)
+        if not doc:
+            return ActionResult.error(
+                f"Linking plan '{item.plan_id}' does not exist; no plans were changed.",
+                retryable=False, code="PLAN_NOT_FOUND",
+            )
+        if doc.data.get("status") != "pending_review":
+            return ActionResult.error(
+                f"Plan '{item.plan_id}' is already '{doc.data.get('status')}', not pending_review; no plans were changed.",
+                retryable=False, code="PLAN_NOT_PENDING",
+            )
+        docs.append((item, doc))
+
+    updated: list[LinkingPlan] = []
+    site_apply_counts: dict[str, int] = {}
+    for item, doc in docs:
+        data = doc.data | {"status": "applied"}
+        await ctx.store.update(storage.PLANS_COLLECTION, doc.id, data)
+        run = await storage.find_run_by_plan(ctx, item.plan_id)
+        if run:
+            await ctx.store.update(storage.RUNS_COLLECTION, run.id, run.data | {"status": "applied"})
+        site_id = data.get("site_id", "")
+        site_apply_counts[site_id] = site_apply_counts.get(site_id, 0) + 1
+        updated.append(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', item.plan_id)}", **data))
+
+    for site_id, increment in site_apply_counts.items():
+        settings_doc = await storage.find_settings(ctx, site_id)
+        if settings_doc:
+            count = int(settings_doc.data.get("confirmed_applies_count", 0)) + increment
+            await ctx.store.update(storage.SETTINGS_COLLECTION, settings_doc.id, settings_doc.data | {
+                "confirmed_applies_count": count, "updated_at": storage.now_iso(),
+            })
+
+    return ActionResult.success(
+        LinkingPlanList(items=updated),
+        summary=f"{len(updated)} explicitly listed plan(s) recorded as applied.",
+    )
 
 
 @chat.function(
