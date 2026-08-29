@@ -16,7 +16,7 @@ if _EXT_DIR not in sys.path:
 _LOCAL = (
     "app", "schemas", "storage", "relevance",
     "handlers_settings", "handlers_index", "handlers_relevance", "handlers_plans",
-    "panels",
+    "panels", "expose",
 )
 for _mod in _LOCAL:
     sys.modules.pop(_mod, None)
@@ -27,3 +27,4 @@ import handlers_index  # noqa: E402,F401
 import handlers_relevance  # noqa: E402,F401
 import handlers_plans  # noqa: E402,F401
 import panels  # noqa: E402,F401
+import expose  # noqa: E402,F401
