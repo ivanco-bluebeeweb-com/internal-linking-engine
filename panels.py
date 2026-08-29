@@ -40,8 +40,8 @@ async def ile_nav(ctx, **kwargs):
     return ui.Stack(direction="v", align="stretch", children=[
         ui.Text("Internal Linking Engine", variant="header"),
         ui.Divider(),
-        ui.ListItem(label="Sites", icon="Link", on_click=ui.Call("__panel__ile")),
-        ui.ListItem(label="Runs", icon="History", on_click=ui.Call("__panel__ile", view="runs")),
+        ui.ListItem(title="Sites", icon="Link", on_click=ui.Call("__panel__ile")),
+        ui.ListItem(title="Runs", icon="History", on_click=ui.Call("__panel__ile", view="runs")),
         ui.Divider(),
         ui.Button("App settings", variant="secondary", full_width=True,
                    on_click=ui.Call("__panel__ile", view="app_settings")),
@@ -107,7 +107,6 @@ async def _enable_site_view(ctx, kwargs) -> ui.UINode:
         ui.Text("Enable a site", variant="header"),
         ui.Form(
             action="enable_site",
-            full_width=True,
             children=[
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
                     ui.Text("Site id", variant="caption"),
@@ -126,7 +125,7 @@ async def _enable_site_view(ctx, kwargs) -> ui.UINode:
                     ui.Input(param_name="languages", placeholder="e.g. ru, ro -- leave blank to auto-detect per article", full_width=True),
                 ]),
                 ui.Button("Enable Internal Linking Engine", full_width=True, variant="primary",
-                           loading_label="Enabling…", on_click=ui.Call("__panel__ile")),
+                           on_click=ui.Call("__panel__ile")),
             ],
         ),
     ])
@@ -148,7 +147,6 @@ async def _site_settings_view(ctx, kwargs) -> ui.UINode:
                  value=f"{d.get('confirmed_applies_count', 0)}/{d.get('full_auto_threshold', 5)}"),
         ui.Form(
             action="update_site_settings",
-            full_width=True,
             children=[
                 ui.Input(param_name="site_id", value=site_id, hidden=True),
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
@@ -168,7 +166,7 @@ async def _site_settings_view(ctx, kwargs) -> ui.UINode:
                     ui.Input(param_name="excluded_urls", placeholder="e.g. https://example.com/contacts", full_width=True),
                 ]),
                 ui.Button("Save settings", full_width=True, variant="primary",
-                           loading_label="Saving…", on_click=ui.Call("__panel__ile", view="site_settings", site_id=site_id)),
+                           on_click=ui.Call("__panel__ile", view="site_settings", site_id=site_id)),
             ],
         ),
     ])

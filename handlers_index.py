@@ -8,7 +8,7 @@ from imperal_sdk import ActionResult
 
 from app import chat
 from schemas import (
-    IndexPostsParams, ListIndexedPostsParams, GetSiteIndexStatusParams,
+    IndexPostsParams, GetSiteIndexStatusParams,
     IndexedPost, IndexedPostList,
 )
 import storage
@@ -49,9 +49,21 @@ async def index_posts(ctx, params: IndexPostsParams) -> ActionResult:
             "last_indexed_at": now,
         }
         existing = await storage.find_indexed_post(ctx, params.site_id, post_id)
-        if exist
-... [1058 chars elided from this argument for history replay -- the tool received the FULL value] ...
-_site_index_status",
+        if existing:
+            await ctx.store.update(storage.INDEX_COLLECTION, existing.id, data)
+            saved.append(IndexedPost(id=existing.id, **data))
+        else:
+            doc = await ctx.store.create(storage.INDEX_COLLECTION, data)
+            saved.append(IndexedPost(id=doc.id, **data))
+
+    return ActionResult.success(
+        IndexedPostList(items=saved),
+        summary=f"Indexed {len(saved)} post(s) for '{params.site_id}'.",
+    )
+
+
+@chat.function(
+    "get_site_index_status",
     description="One-glance index health for a site: how many posts indexed, by language, and when last indexed.",
     action_type="read",
     data_model=IndexedPostList,

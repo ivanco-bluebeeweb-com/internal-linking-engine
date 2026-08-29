@@ -79,7 +79,7 @@ async def preview_internal_links(ctx, params: PreviewInternalLinksParams) -> Act
             snapshot[find] = find  # original text IS the find string (pre-insertion)
 
         surviving_cta = None
-        if cta_in and cta_added_allowed := (max_cta > 0):
+        if cta_in and max_cta > 0:
             find = cta_in.get("find_exact_substring", "")
             count = _count_uniquely(raw, find)
             if count == 1:
