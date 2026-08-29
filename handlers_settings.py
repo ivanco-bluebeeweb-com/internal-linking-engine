@@ -35,7 +35,7 @@ async def enable_site(ctx, params: EnableSiteParams) -> ActionResult:
             "updated_at": now,
         }
         await ctx.store.update(storage.SETTINGS_COLLECTION, existing.id, data)
-        return ActionResult.success(SiteSettings(id=existing.id, **data), summary=f"Re-enabled Internal Linking Engine for '{params.site_id}'.")
+        return ActionResult.success(SiteSettings(id=existing.id, title=data.get("domain") or params.site_id, **data), summary=f"Re-enabled Internal Linking Engine for '{params.site_id}'.")
 
     data = {
         "site_id": params.site_id,
@@ -54,7 +54,7 @@ async def enable_site(ctx, params: EnableSiteParams) -> ActionResult:
         "updated_at": now,
     }
     doc = await ctx.store.create(storage.SETTINGS_COLLECTION, data)
-    return ActionResult.success(SiteSettings(id=doc.id, **data), summary=f"Internal Linking Engine enabled for '{data['domain']}' (review-first mode).")
+    return ActionResult.success(SiteSettings(id=doc.id, title=data["domain"], **data), summary=f"Internal Linking Engine enabled for '{data['domain']}' (review-first mode).")
 
 
 @chat.function(
@@ -93,7 +93,7 @@ async def update_site_settings(ctx, params: UpdateSiteSettingsParams) -> ActionR
     data["updated_at"] = storage.now_iso()
 
     await ctx.store.update(storage.SETTINGS_COLLECTION, existing.id, data)
-    return ActionResult.success(SiteSettings(id=existing.id, **data), summary=f"Updated settings for '{data.get('domain') or params.site_id}'.")
+    return ActionResult.success(SiteSettings(id=existing.id, title=data.get("domain") or params.site_id, **data), summary=f"Updated settings for '{data.get('domain') or params.site_id}'.")
 
 
 @chat.function(
@@ -106,7 +106,7 @@ async def update_site_settings(ctx, params: UpdateSiteSettingsParams) -> ActionR
 async def list_sites(ctx, params: ListSitesParams) -> ActionResult:
     """List every site with Internal Linking Engine settings, enabled or not."""
     rows = await storage.list_settings(ctx)
-    items = [SiteSettings(**r) for r in rows]
+    items = [SiteSettings(title=r.get("domain") or r.get("site_id", ""), **r) for r in rows]
     return ActionResult.success(SiteSettingsList(items=items), summary=f"{len(items)} site(s) configured.")
 
 
@@ -122,4 +122,4 @@ async def get_site_settings(ctx, params: GetSiteSettingsParams) -> ActionResult:
     existing = await storage.find_settings(ctx, params.site_id)
     if not existing:
         return ActionResult.error(f"No Internal Linking Engine settings found for site '{params.site_id}'.", retryable=False, code="SITE_NOT_ENABLED")
-    return ActionResult.success(SiteSettings(id=existing.id, **existing.data), summary=f"Settings for '{existing.data.get('domain') or params.site_id}'.")
+    return ActionResult.success(SiteSettings(id=existing.id, title=existing.data.get("domain") or params.site_id, **existing.data), summary=f"Settings for '{existing.data.get('domain') or params.site_id}'.")

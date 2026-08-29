@@ -124,7 +124,7 @@ async def preview_internal_links(ctx, params: PreviewInternalLinksParams) -> Act
     })
 
     return ActionResult.success(
-        LinkingPlan(id=plan_id, **data),
+        LinkingPlan(id=plan_id, title=f"Plan for {data['domain']}", **data),
         summary=f"Plan {plan_id}: {posts_touched} post(s), {links_added} link(s) + {cta_added} CTA(s) proposed.",
     )
 
@@ -141,7 +141,7 @@ async def get_linking_plan(ctx, params: GetLinkingPlanParams) -> ActionResult:
     doc = await ctx.store.get(storage.PLANS_COLLECTION, params.plan_id)
     if not doc:
         return ActionResult.error("That linking plan does not exist.", retryable=False, code="PLAN_NOT_FOUND")
-    return ActionResult.success(LinkingPlan(id=doc.id, **doc.data), summary=f"Plan {params.plan_id} ({doc.data.get('status')}).")
+    return ActionResult.success(LinkingPlan(id=doc.id, title=f"Plan for {doc.data.get('domain', params.plan_id)}", **doc.data), summary=f"Plan {params.plan_id} ({doc.data.get('status')}).")
 
 
 @chat.function(
@@ -159,7 +159,7 @@ async def list_linking_plans(ctx, params: ListLinkingPlansParams) -> ActionResul
         rows = [r for r in rows if r.get("site_id") == params.site_id]
     if params.status:
         rows = [r for r in rows if r.get("status") == params.status]
-    items = [LinkingPlan(**r) for r in rows]
+    items = [LinkingPlan(title=f"Plan for {r.get('domain') or r.get('site_id', '')}", **r) for r in rows]
     return ActionResult.success(LinkingPlanList(items=items), summary=f"{len(items)} plan(s).")
 
 
@@ -201,7 +201,7 @@ async def apply_internal_links(ctx, params: ApplyInternalLinksParams) -> ActionR
         })
 
     applied_n = len(params.applied_post_ids) or data.get("posts_touched_count", 0)
-    return ActionResult.success(LinkingPlan(id=doc.id, **data), summary=f"Plan {params.plan_id} applied ({applied_n} post(s) written).")
+    return ActionResult.success(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', params.plan_id)}", **data), summary=f"Plan {params.plan_id} applied ({applied_n} post(s) written).")
 
 
 @chat.function(
@@ -222,7 +222,7 @@ async def reject_linking_plan(ctx, params: RejectLinkingPlanParams) -> ActionRes
     run = await storage.find_run_by_plan(ctx, params.plan_id)
     if run:
         await ctx.store.update(storage.RUNS_COLLECTION, run.id, run.data | {"status": "rejected"})
-    return ActionResult.success(LinkingPlan(id=doc.id, **data), summary=f"Plan {params.plan_id} rejected.")
+    return ActionResult.success(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', params.plan_id)}", **data), summary=f"Plan {params.plan_id} rejected.")
 
 
 @chat.function(
@@ -253,7 +253,7 @@ async def rollback_linking_run(ctx, params: RollbackLinkingRunParams) -> ActionR
     run = await storage.find_run_by_plan(ctx, params.plan_id)
     if run:
         await ctx.store.update(storage.RUNS_COLLECTION, run.id, run.data | {"status": "rolled_back"})
-    return ActionResult.success(LinkingPlan(id=doc.id, **data), summary=f"Plan {params.plan_id} rolled back -- {len(data.get('entries', []))} post(s) to restore via wordpress-hub.")
+    return ActionResult.success(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', params.plan_id)}", **data), summary=f"Plan {params.plan_id} rolled back -- {len(data.get('entries', []))} post(s) to restore via wordpress-hub.")
 
 
 @chat.function(
@@ -269,5 +269,5 @@ async def list_linking_runs(ctx, params: ListLinkingRunsParams) -> ActionResult:
     rows = [doc.data | {"id": doc.id} for doc in page.data]
     if params.site_id:
         rows = [r for r in rows if r.get("site_id") == params.site_id]
-    items = [LinkingRun(**r) for r in rows]
+    items = [LinkingRun(title=f"Run for {r.get('domain') or r.get('site_id', '')}", **r) for r in rows]
     return ActionResult.success(LinkingRunList(items=items), summary=f"{len(items)} run(s).")
