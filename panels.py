@@ -107,25 +107,24 @@ async def _enable_site_view(ctx, kwargs) -> ui.UINode:
         ui.Text("Enable a site", variant="header"),
         ui.Form(
             action="enable_site",
+            submit_label="Enable Internal Linking Engine",
             children=[
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
                     ui.Text("Site id", variant="caption"),
-                    ui.Input(param_name="site_id", placeholder="Site id or domain from Sites Registry, e.g. climtec.md", full_width=True),
+                    ui.Input(param_name="site_id", placeholder="Site id or domain from Sites Registry, e.g. climtec.md"),
                 ]),
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
                     ui.Text("Display name", variant="caption"),
-                    ui.Input(param_name="domain", placeholder="Leave blank to use the site id as display name", full_width=True),
+                    ui.Input(param_name="domain", placeholder="Leave blank to use the site id as display name"),
                 ]),
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
                     ui.Text("Max internal links per article", variant="caption"),
-                    ui.Input(param_name="max_links_per_post", placeholder="e.g. 3 (recommended range: 2-5)", full_width=True),
+                    ui.Input(param_name="max_links_per_post", placeholder="e.g. 3 (recommended range: 2-5)"),
                 ]),
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
                     ui.Text("Languages to isolate", variant="caption"),
-                    ui.Input(param_name="languages", placeholder="e.g. ru, ro -- leave blank to auto-detect per article", full_width=True),
+                    ui.Input(param_name="languages", placeholder="e.g. ru, ro -- leave blank to auto-detect per article"),
                 ]),
-                ui.Button("Enable Internal Linking Engine", full_width=True, variant="primary",
-                           on_click=ui.Call("__panel__ile")),
             ],
         ),
     ])
@@ -147,11 +146,12 @@ async def _site_settings_view(ctx, kwargs) -> ui.UINode:
                  value=f"{d.get('confirmed_applies_count', 0)}/{d.get('full_auto_threshold', 5)}"),
         ui.Form(
             action="update_site_settings",
+            submit_label="Save settings",
+            defaults={"site_id": site_id},
             children=[
-                ui.Input(param_name="site_id", value=site_id, hidden=True),
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
                     ui.Text("Working mode", variant="caption"),
-                    ui.Select(param_name="mode", value=d.get("mode", "review_first"), full_width=True, options=[
+                    ui.Select(param_name="mode", value=d.get("mode", "review_first"), options=[
                         {"value": "review_first", "label": "Review-first (preview before applying)"},
                         {"value": "full_auto", "label": "Full-auto (apply automatically)"},
                     ]),
@@ -159,14 +159,12 @@ async def _site_settings_view(ctx, kwargs) -> ui.UINode:
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
                     ui.Text("Max internal links per article", variant="caption"),
                     ui.Input(param_name="max_links_per_post", value=str(d.get("max_links_per_post", 3)),
-                               placeholder="e.g. 3", full_width=True),
+                               placeholder="e.g. 3"),
                 ]),
                 ui.Stack(direction="v", gap=1, align="stretch", children=[
                     ui.Text("Excluded URLs (this engine will never touch these)", variant="caption"),
-                    ui.Input(param_name="excluded_urls", placeholder="e.g. https://example.com/contacts", full_width=True),
+                    ui.Input(param_name="excluded_urls", placeholder="e.g. https://example.com/contacts"),
                 ]),
-                ui.Button("Save settings", full_width=True, variant="primary",
-                           on_click=ui.Call("__panel__ile", view="site_settings", site_id=site_id)),
             ],
         ),
     ])
