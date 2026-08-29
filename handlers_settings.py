@@ -24,6 +24,7 @@ import storage
     event="internal-linking-engine.enable_site",
 )
 async def enable_site(ctx, params: EnableSiteParams) -> ActionResult:
+    """Turn on the engine for a site (review-first by default); idempotent re-enable."""
     existing = await storage.find_settings(ctx, params.site_id)
     now = storage.now_iso()
     if existing:
@@ -65,6 +66,7 @@ async def enable_site(ctx, params: EnableSiteParams) -> ActionResult:
     event="internal-linking-engine.update_site_settings",
 )
 async def update_site_settings(ctx, params: UpdateSiteSettingsParams) -> ActionResult:
+    """Patch selected settings fields for an already-enabled site."""
     existing = await storage.find_settings(ctx, params.site_id)
     if not existing:
         return ActionResult.error(f"No Internal Linking Engine settings found for site '{params.site_id}'. Call enable_site first.", retryable=False, code="SITE_NOT_ENABLED")
@@ -102,6 +104,7 @@ async def update_site_settings(ctx, params: UpdateSiteSettingsParams) -> ActionR
     event="internal-linking-engine.list_sites",
 )
 async def list_sites(ctx, params: ListSitesParams) -> ActionResult:
+    """List every site with Internal Linking Engine settings, enabled or not."""
     rows = await storage.list_settings(ctx)
     items = [SiteSettings(**r) for r in rows]
     return ActionResult.success(SiteSettingsList(items=items), summary=f"{len(items)} site(s) configured.")
@@ -115,6 +118,7 @@ async def list_sites(ctx, params: ListSitesParams) -> ActionResult:
     event="internal-linking-engine.get_site_settings",
 )
 async def get_site_settings(ctx, params: GetSiteSettingsParams) -> ActionResult:
+    """Read one site's full Internal Linking Engine settings."""
     existing = await storage.find_settings(ctx, params.site_id)
     if not existing:
         return ActionResult.error(f"No Internal Linking Engine settings found for site '{params.site_id}'.", retryable=False, code="SITE_NOT_ENABLED")

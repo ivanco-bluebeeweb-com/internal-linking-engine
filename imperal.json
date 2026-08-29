@@ -1,0 +1,2613 @@
+{
+  "manifest_schema_version": 3,
+  "sdk_version": "5.13.0",
+  "app_id": "internal-linking-engine",
+  "version": "0.1.0",
+  "name": "Internal Linking Engine",
+  "description": "Automatic organic internal linking + one conversion CTA block per article, for every connected site. Builds a lightweight content index, proposes language-isolated relevant link targets, drafts anchor placements and a CTA with a strict preview -> apply -> rollback diff -- never a silent content rewrite.",
+  "icon": "icon.svg",
+  "actions_explicit": true,
+  "system": false,
+  "capabilities": [
+    "internal_linking:read",
+    "internal_linking:write"
+  ],
+  "tools": [
+    {
+      "name": "enable_site",
+      "description": "Turn on Internal Linking Engine for one site already known to Sites Registry. Creates the site's settings row in review_first mode by default -- no content is touched until a plan is previewed and explicitly applied.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "ile.site_enabled"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "description": "Site id/domain from Sites Registry to enable Internal Linking Engine for.",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "description": "Site domain, for display; defaults to site_id if left blank.",
+            "title": "Domain",
+            "type": "string"
+          },
+          "max_links_per_post": {
+            "default": 3,
+            "description": "Max internal links this engine may add per article (2-5 recommended).",
+            "title": "Max Links Per Post",
+            "type": "integer"
+          },
+          "languages": {
+            "description": "Explicit language codes to isolate (e.g. ['ru','ro']). Leave empty to auto-detect per article.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "site_id"
+        ],
+        "title": "EnableSiteParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "One site's Internal Linking Engine configuration. site_id matches the\nSites Registry id/domain so both apps agree on identity without a\ntranslation table.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "site_id": {
+            "default": "",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "title": "Domain",
+            "type": "string"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "mode": {
+            "default": "review_first",
+            "title": "Mode",
+            "type": "string"
+          },
+          "max_links_per_post": {
+            "default": 3,
+            "title": "Max Links Per Post",
+            "type": "integer"
+          },
+          "max_cta_per_post": {
+            "default": 1,
+            "title": "Max Cta Per Post",
+            "type": "integer"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "cta_targets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Cta Targets",
+            "type": "array"
+          },
+          "excluded_urls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excluded Urls",
+            "type": "array"
+          },
+          "confirmed_applies_count": {
+            "default": 0,
+            "title": "Confirmed Applies Count",
+            "type": "integer"
+          },
+          "full_auto_threshold": {
+            "default": 5,
+            "title": "Full Auto Threshold",
+            "type": "integer"
+          },
+          "last_scanned_at": {
+            "default": "",
+            "title": "Last Scanned At",
+            "type": "string"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "updated_at": {
+            "default": "",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "SiteSettings",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "internal-linking-engine.enable_site",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "update_site_settings",
+      "description": "Update an existing site's Internal Linking Engine settings (mode, limits, CTA targets, exclusions, languages). Only given fields change.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "ile.settings_updated"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "description": "Site id to update settings for.",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Turn the engine on/off for this site.",
+            "title": "Enabled"
+          },
+          "mode": {
+            "default": "",
+            "description": "review_first or full_auto. Blank keeps current value.",
+            "title": "Mode",
+            "type": "string"
+          },
+          "max_links_per_post": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Max internal links per article.",
+            "title": "Max Links Per Post"
+          },
+          "max_cta_per_post": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Max CTA blocks per article (usually 1).",
+            "title": "Max Cta Per Post"
+          },
+          "languages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Explicit language codes to isolate.",
+            "title": "Languages"
+          },
+          "cta_targets": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "CTA target definitions: [{'url','label','tone'}].",
+            "title": "Cta Targets"
+          },
+          "excluded_urls": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "URLs to never modify.",
+            "title": "Excluded Urls"
+          },
+          "full_auto_threshold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Confirmed applies required before full_auto becomes eligible.",
+            "title": "Full Auto Threshold"
+          }
+        },
+        "required": [
+          "site_id"
+        ],
+        "title": "UpdateSiteSettingsParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "One site's Internal Linking Engine configuration. site_id matches the\nSites Registry id/domain so both apps agree on identity without a\ntranslation table.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "site_id": {
+            "default": "",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "title": "Domain",
+            "type": "string"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "mode": {
+            "default": "review_first",
+            "title": "Mode",
+            "type": "string"
+          },
+          "max_links_per_post": {
+            "default": 3,
+            "title": "Max Links Per Post",
+            "type": "integer"
+          },
+          "max_cta_per_post": {
+            "default": 1,
+            "title": "Max Cta Per Post",
+            "type": "integer"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "cta_targets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Cta Targets",
+            "type": "array"
+          },
+          "excluded_urls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excluded Urls",
+            "type": "array"
+          },
+          "confirmed_applies_count": {
+            "default": 0,
+            "title": "Confirmed Applies Count",
+            "type": "integer"
+          },
+          "full_auto_threshold": {
+            "default": 5,
+            "title": "Full Auto Threshold",
+            "type": "integer"
+          },
+          "last_scanned_at": {
+            "default": "",
+            "title": "Last Scanned At",
+            "type": "string"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "updated_at": {
+            "default": "",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "SiteSettings",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "internal-linking-engine.update_site_settings",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "list_sites",
+      "description": "List every site with Internal Linking Engine settings (enabled or not), across every connected site.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {},
+        "title": "ListSitesParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "SiteSettings": {
+            "description": "One site's Internal Linking Engine configuration. site_id matches the\nSites Registry id/domain so both apps agree on identity without a\ntranslation table.",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "kind": {
+                "default": "",
+                "title": "Kind",
+                "type": "string"
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Subtitle"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Url"
+              },
+              "site_id": {
+                "default": "",
+                "title": "Site Id",
+                "type": "string"
+              },
+              "domain": {
+                "default": "",
+                "title": "Domain",
+                "type": "string"
+              },
+              "enabled": {
+                "default": false,
+                "title": "Enabled",
+                "type": "boolean"
+              },
+              "mode": {
+                "default": "review_first",
+                "title": "Mode",
+                "type": "string"
+              },
+              "max_links_per_post": {
+                "default": 3,
+                "title": "Max Links Per Post",
+                "type": "integer"
+              },
+              "max_cta_per_post": {
+                "default": 1,
+                "title": "Max Cta Per Post",
+                "type": "integer"
+              },
+              "languages": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Languages",
+                "type": "array"
+              },
+              "cta_targets": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "title": "Cta Targets",
+                "type": "array"
+              },
+              "excluded_urls": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Excluded Urls",
+                "type": "array"
+              },
+              "confirmed_applies_count": {
+                "default": 0,
+                "title": "Confirmed Applies Count",
+                "type": "integer"
+              },
+              "full_auto_threshold": {
+                "default": 5,
+                "title": "Full Auto Threshold",
+                "type": "integer"
+              },
+              "last_scanned_at": {
+                "default": "",
+                "title": "Last Scanned At",
+                "type": "string"
+              },
+              "created_at": {
+                "default": "",
+                "title": "Created At",
+                "type": "string"
+              },
+              "updated_at": {
+                "default": "",
+                "title": "Updated At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "title": "SiteSettings",
+            "type": "object",
+            "x-sdl": "entity"
+          }
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/SiteSettings"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "SiteSettingsList",
+        "type": "object",
+        "x-sdl": "entity-list"
+      },
+      "event": "internal-linking-engine.list_sites",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "get_site_settings",
+      "description": "Read one site's Internal Linking Engine settings in full.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "description": "Site id to read settings for.",
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id"
+        ],
+        "title": "GetSiteSettingsParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "One site's Internal Linking Engine configuration. site_id matches the\nSites Registry id/domain so both apps agree on identity without a\ntranslation table.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "site_id": {
+            "default": "",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "title": "Domain",
+            "type": "string"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "mode": {
+            "default": "review_first",
+            "title": "Mode",
+            "type": "string"
+          },
+          "max_links_per_post": {
+            "default": 3,
+            "title": "Max Links Per Post",
+            "type": "integer"
+          },
+          "max_cta_per_post": {
+            "default": 1,
+            "title": "Max Cta Per Post",
+            "type": "integer"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array"
+          },
+          "cta_targets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Cta Targets",
+            "type": "array"
+          },
+          "excluded_urls": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excluded Urls",
+            "type": "array"
+          },
+          "confirmed_applies_count": {
+            "default": 0,
+            "title": "Confirmed Applies Count",
+            "type": "integer"
+          },
+          "full_auto_threshold": {
+            "default": 5,
+            "title": "Full Auto Threshold",
+            "type": "integer"
+          },
+          "last_scanned_at": {
+            "default": "",
+            "title": "Last Scanned At",
+            "type": "string"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "updated_at": {
+            "default": "",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "SiteSettings",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "internal-linking-engine.get_site_settings",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "index_posts",
+      "description": "Cache metadata for a batch of posts already fetched via wordpress-hub, so the Relevance Engine can score them without re-fetching. Call this once per post before get_relevant_targets/preview_internal_links can use it as a candidate or source.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "ile.posts_indexed"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "description": "Site id these posts belong to.",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "posts": {
+            "description": "Post metadata already fetched via wordpress-hub, one dict per post: post_id, title, slug, url, post_type, categories, tags, product_type, lang, excerpt, outbound_link_urls.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Posts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "site_id",
+          "posts"
+        ],
+        "title": "IndexPostsParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "IndexedPost": {
+            "description": "One article/page's cached metadata for relevance scoring. Populated\nfrom data Webbee already fetched via wordpress-hub (list_posts/\nget_post_content/get_post_meta/extract_links) and passed in -- this app\nnever fetches it itself (see app.py docstring).",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "title": {
+                "default": "",
+                "title": "Title",
+                "type": "string"
+              },
+              "kind": {
+                "default": "",
+                "title": "Kind",
+                "type": "string"
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Subtitle"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "url": {
+                "default": "",
+                "title": "Url",
+                "type": "string"
+              },
+              "site_id": {
+                "default": "",
+                "title": "Site Id",
+                "type": "string"
+              },
+              "post_id": {
+                "default": "",
+                "title": "Post Id",
+                "type": "string"
+              },
+              "slug": {
+                "default": "",
+                "title": "Slug",
+                "type": "string"
+              },
+              "post_type": {
+                "default": "post",
+                "title": "Post Type",
+                "type": "string"
+              },
+              "categories": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Categories",
+                "type": "array"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Tags",
+                "type": "array"
+              },
+              "product_type": {
+                "default": "",
+                "title": "Product Type",
+                "type": "string"
+              },
+              "lang": {
+                "default": "",
+                "title": "Lang",
+                "type": "string"
+              },
+              "excerpt": {
+                "default": "",
+                "title": "Excerpt",
+                "type": "string"
+              },
+              "outbound_link_urls": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Outbound Link Urls",
+                "type": "array"
+              },
+              "last_indexed_at": {
+                "default": "",
+                "title": "Last Indexed At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "title": "IndexedPost",
+            "type": "object",
+            "x-sdl": "entity"
+          }
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/IndexedPost"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "IndexedPostList",
+        "type": "object",
+        "x-sdl": "entity-list"
+      },
+      "event": "internal-linking-engine.index_posts",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "get_site_index_status",
+      "description": "One-glance index health for a site: how many posts indexed, by language, and when last indexed.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "description": "Site id to read index status for.",
+            "title": "Site Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_id"
+        ],
+        "title": "GetSiteIndexStatusParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "IndexedPost": {
+            "description": "One article/page's cached metadata for relevance scoring. Populated\nfrom data Webbee already fetched via wordpress-hub (list_posts/\nget_post_content/get_post_meta/extract_links) and passed in -- this app\nnever fetches it itself (see app.py docstring).",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "title": {
+                "default": "",
+                "title": "Title",
+                "type": "string"
+              },
+              "kind": {
+                "default": "",
+                "title": "Kind",
+                "type": "string"
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Subtitle"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "status": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Status"
+              },
+              "url": {
+                "default": "",
+                "title": "Url",
+                "type": "string"
+              },
+              "site_id": {
+                "default": "",
+                "title": "Site Id",
+                "type": "string"
+              },
+              "post_id": {
+                "default": "",
+                "title": "Post Id",
+                "type": "string"
+              },
+              "slug": {
+                "default": "",
+                "title": "Slug",
+                "type": "string"
+              },
+              "post_type": {
+                "default": "post",
+                "title": "Post Type",
+                "type": "string"
+              },
+              "categories": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Categories",
+                "type": "array"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Tags",
+                "type": "array"
+              },
+              "product_type": {
+                "default": "",
+                "title": "Product Type",
+                "type": "string"
+              },
+              "lang": {
+                "default": "",
+                "title": "Lang",
+                "type": "string"
+              },
+              "excerpt": {
+                "default": "",
+                "title": "Excerpt",
+                "type": "string"
+              },
+              "outbound_link_urls": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Outbound Link Urls",
+                "type": "array"
+              },
+              "last_indexed_at": {
+                "default": "",
+                "title": "Last Indexed At",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "title": "IndexedPost",
+            "type": "object",
+            "x-sdl": "entity"
+          }
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/IndexedPost"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "IndexedPostList",
+        "type": "object",
+        "x-sdl": "entity-list"
+      },
+      "event": "internal-linking-engine.get_site_index_status",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "get_relevant_targets",
+      "description": "Find the top-N internal-link targets for one already-indexed source post, using deterministic metadata + term-overlap scoring (categories/tags/product_type/title). Language isolation is a hard filter -- a candidate whose lang differs from the source post's lang is never returned, even if it scores highest (the climtec.md RU/RO lesson). Excluded URLs from the site's settings are also dropped before scoring.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "description": "Site id.",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "source_post_id": {
+            "description": "Post id (must already be indexed) to find relevant link targets for.",
+            "title": "Source Post Id",
+            "type": "string"
+          },
+          "max_targets": {
+            "default": 5,
+            "description": "Max candidate targets to return.",
+            "maximum": 10,
+            "minimum": 1,
+            "title": "Max Targets",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "site_id",
+          "source_post_id"
+        ],
+        "title": "GetRelevantTargetsParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "RelevanceMatch": {
+            "description": "One scored candidate link target for a source post.",
+            "properties": {
+              "target_post_id": {
+                "default": "",
+                "title": "Target Post Id",
+                "type": "string"
+              },
+              "target_title": {
+                "default": "",
+                "title": "Target Title",
+                "type": "string"
+              },
+              "target_url": {
+                "default": "",
+                "title": "Target Url",
+                "type": "string"
+              },
+              "score": {
+                "default": 0.0,
+                "title": "Score",
+                "type": "number"
+              },
+              "reason": {
+                "default": "",
+                "title": "Reason",
+                "type": "string"
+              }
+            },
+            "title": "RelevanceMatch",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/$defs/RelevanceMatch"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "title": "RelevanceMatchList",
+        "type": "object",
+        "x-sdl": "entity-list"
+      },
+      "event": "internal-linking-engine.get_relevant_targets",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "preview_internal_links",
+      "description": "Build a preview linking+CTA plan for a site -- NEVER writes anything. Takes raw content Webbee already fetched via wordpress-hub.get_post_content, and (optionally) anchor/CTA insertions Webbee already drafted via an LLM pass, and validates every proposed insertion's find_exact_substring occurs EXACTLY ONCE in that post's current raw content -- any insertion that doesn't is dropped, never guessed. Returns a plan_id; nothing is applied until apply_internal_links is called after Webbee has actually written each surviving diff via wordpress-hub.replace_post_content_text.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "ile.plan_previewed"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "description": "Site id to build a linking+CTA plan for.",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "post_ids": {
+            "description": "Optional explicit post ids to limit the plan to; empty scans every indexed post for this site.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Post Ids",
+            "type": "array"
+          },
+          "posts_content": {
+            "description": "Raw content + state tokens Webbee already fetched via wordpress-hub.get_post_content, one dict per post: {post_id, title, url, lang, raw_content, expected_state_token}. This app never fetches content itself (see app.py docstring).",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Posts Content",
+            "type": "array"
+          },
+          "proposed_insertions": {
+            "description": "Optional: anchor/CTA insertions Webbee already drafted via an LLM pass per post, keyed by post_id: [{post_id, link_suggestions: [...], cta_suggestion: {...}}]. If omitted, this app only returns relevance-scored candidate targets per post without drafted anchor text (a lighter, metadata-only preview) -- Webbee can then draft insertions and call preview again to attach them.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Proposed Insertions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "site_id",
+          "posts_content"
+        ],
+        "title": "PreviewInternalLinksParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "One scan/preview run for a site -- the unit preview_internal_links\ncreates and apply_internal_links/reject_linking_plan/rollback_linking_run\ntransition through PLAN_STATUS_CHOICES.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "default": "pending_review",
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "site_id": {
+            "default": "",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "title": "Domain",
+            "type": "string"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "links_added_count": {
+            "default": 0,
+            "title": "Links Added Count",
+            "type": "integer"
+          },
+          "cta_added_count": {
+            "default": 0,
+            "title": "Cta Added Count",
+            "type": "integer"
+          },
+          "posts_touched_count": {
+            "default": 0,
+            "title": "Posts Touched Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "LinkingPlan",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "internal-linking-engine.preview_internal_links",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "get_linking_plan",
+      "description": "Read one linking plan in full -- every post's proposed diff, for review before applying.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "plan_id": {
+            "description": "Linking plan id from preview_internal_links.",
+            "title": "Plan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "GetLinkingPlanParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "One scan/preview run for a site -- the unit preview_internal_links\ncreates and apply_internal_links/reject_linking_plan/rollback_linking_run\ntransition through PLAN_STATUS_CHOICES.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "default": "pending_review",
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "site_id": {
+            "default": "",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "title": "Domain",
+            "type": "string"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "links_added_count": {
+            "default": 0,
+            "title": "Links Added Count",
+            "type": "integer"
+          },
+          "cta_added_count": {
+            "default": 0,
+            "title": "Cta Added Count",
+            "type": "integer"
+          },
+          "posts_touched_count": {
+            "default": 0,
+            "title": "Posts Touched Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "LinkingPlan",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "internal-linking-engine.get_linking_plan",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "list_linking_plans",
+      "description": "List linking plans, optionally filtered by site and/or status.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "default": "",
+            "description": "Optional site id filter.",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "",
+            "description": "Optional status filter: pending_review, applied, rolled_back, rejected.",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "ListLinkingPlansParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "LinkingPlan": {
+            "description": "One scan/preview run for a site -- the unit preview_internal_links\ncreates and apply_internal_links/reject_linking_plan/rollback_linking_run\ntransition through PLAN_STATUS_CHOICES.",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "kind": {
+                "default": "",
+                "title": "Kind",
+                "type": "string"
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Subtitle"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "status": {
+                "default": "pending_review",
+                "title": "Status",
+                "type": "string"
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Url"
+              },
+              "site_id": {
+                "default": "",
+                "title": "Site Id",
+                "type": "string"
+              },
+              "domain": {
+                "default": "",
+                "title": "Domain",
+                "type": "string"
+              },
+              "created_at": {
+                "default": "",
+                "title": "Created At",
+                "type": "string"
+              },
+              "entries": {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "title": "Entries",
+                "type": "array"
+              },
+              "links_added_count": {
+                "default": 0,
+                "title": "Links Added Count",
+                "type": "integer"
+              },
+              "cta_added_count": {
+                "default": 0,
+                "title": "Cta Added Count",
+                "type": "integer"
+              },
+              "posts_touched_count": {
+                "default": 0,
+                "title": "Posts Touched Count",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "title": "LinkingPlan",
+            "type": "object",
+            "x-sdl": "entity"
+          }
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/LinkingPlan"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "LinkingPlanList",
+        "type": "object",
+        "x-sdl": "entity-list"
+      },
+      "event": "internal-linking-engine.list_linking_plans",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "apply_internal_links",
+      "description": "Record that a pending_review plan's diffs were actually written to the site -- call this ONLY AFTER Webbee has already called wordpress-hub.replace_post_content_text for each surviving insertion in the plan (using expected_state_token per post for safety). This function does not write to any site itself; it only transitions the plan's own status and increments the site's confirmed_applies_count toward its full_auto threshold.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "ile.plan_applied"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "plan_id": {
+            "description": "Linking plan id to mark as applied, AFTER Webbee has actually written each diff via wordpress-hub.replace_post_content_text.",
+            "title": "Plan Id",
+            "type": "string"
+          },
+          "applied_post_ids": {
+            "description": "Which post ids from the plan were actually written successfully; partial application is recorded honestly (not all-or-nothing).",
+            "items": {
+              "type": "string"
+            },
+            "title": "Applied Post Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "ApplyInternalLinksParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "One scan/preview run for a site -- the unit preview_internal_links\ncreates and apply_internal_links/reject_linking_plan/rollback_linking_run\ntransition through PLAN_STATUS_CHOICES.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "default": "pending_review",
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "site_id": {
+            "default": "",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "title": "Domain",
+            "type": "string"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "links_added_count": {
+            "default": 0,
+            "title": "Links Added Count",
+            "type": "integer"
+          },
+          "cta_added_count": {
+            "default": 0,
+            "title": "Cta Added Count",
+            "type": "integer"
+          },
+          "posts_touched_count": {
+            "default": 0,
+            "title": "Posts Touched Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "LinkingPlan",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "internal-linking-engine.apply_internal_links",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "reject_linking_plan",
+      "description": "Reject a pending_review plan without applying it. Nothing was ever written, so this is purely a status change.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "ile.plan_rejected"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "plan_id": {
+            "description": "Linking plan id to reject without applying.",
+            "title": "Plan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "RejectLinkingPlanParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "One scan/preview run for a site -- the unit preview_internal_links\ncreates and apply_internal_links/reject_linking_plan/rollback_linking_run\ntransition through PLAN_STATUS_CHOICES.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "default": "pending_review",
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "site_id": {
+            "default": "",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "title": "Domain",
+            "type": "string"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "links_added_count": {
+            "default": 0,
+            "title": "Links Added Count",
+            "type": "integer"
+          },
+          "cta_added_count": {
+            "default": 0,
+            "title": "Cta Added Count",
+            "type": "integer"
+          },
+          "posts_touched_count": {
+            "default": 0,
+            "title": "Posts Touched Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "LinkingPlan",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "internal-linking-engine.reject_linking_plan",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "rollback_linking_run",
+      "description": "Roll back an already-applied plan: returns the original find/replace pairs (the inserted anchor/CTA text as 'find', the pre-insertion original snippet as 'replace') for Webbee to write back via wordpress-hub.replace_post_content_text, restoring each post's content. This function does not write to any site itself -- it only returns the rollback instructions and transitions the plan's own status once Webbee confirms.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [
+        "ile.run_rolled_back"
+      ],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "plan_id": {
+            "description": "Applied plan id to roll back -- returns the original find/replace pairs for Webbee to write back via wordpress-hub.replace_post_content_text.",
+            "title": "Plan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_id"
+        ],
+        "title": "RollbackLinkingRunParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "description": "One scan/preview run for a site -- the unit preview_internal_links\ncreates and apply_internal_links/reject_linking_plan/rollback_linking_run\ntransition through PLAN_STATUS_CHOICES.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Subtitle"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Description"
+          },
+          "status": {
+            "default": "pending_review",
+            "title": "Status",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Url"
+          },
+          "site_id": {
+            "default": "",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "title": "Domain",
+            "type": "string"
+          },
+          "created_at": {
+            "default": "",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "links_added_count": {
+            "default": 0,
+            "title": "Links Added Count",
+            "type": "integer"
+          },
+          "cta_added_count": {
+            "default": 0,
+            "title": "Cta Added Count",
+            "type": "integer"
+          },
+          "posts_touched_count": {
+            "default": 0,
+            "title": "Posts Touched Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "LinkingPlan",
+        "type": "object",
+        "x-sdl": "entity"
+      },
+      "event": "internal-linking-engine.rollback_linking_run",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    },
+    {
+      "name": "list_linking_runs",
+      "description": "List the linking runs dashboard -- one row per plan lifecycle event, newest first.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "site_id": {
+            "default": "",
+            "description": "Optional site id filter; empty lists across all sites.",
+            "title": "Site Id",
+            "type": "string"
+          },
+          "limit": {
+            "default": 50,
+            "description": "Max rows to return.",
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "ListLinkingRunsParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "$defs": {
+          "LinkingRun": {
+            "description": "One dashboard row: mirrors a LinkingPlan's lifecycle transitions for\nthe at-a-glance runs table (§10 of the plan).",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "title": "Id"
+              },
+              "title": {
+                "title": "Title",
+                "type": "string"
+              },
+              "kind": {
+                "default": "",
+                "title": "Kind",
+                "type": "string"
+              },
+              "subtitle": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Subtitle"
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Description"
+              },
+              "status": {
+                "default": "pending_review",
+                "title": "Status",
+                "type": "string"
+              },
+              "url": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Url"
+              },
+              "site_id": {
+                "default": "",
+                "title": "Site Id",
+                "type": "string"
+              },
+              "domain": {
+                "default": "",
+                "title": "Domain",
+                "type": "string"
+              },
+              "plan_id": {
+                "default": "",
+                "title": "Plan Id",
+                "type": "string"
+              },
+              "created_at": {
+                "default": "",
+                "title": "Created At",
+                "type": "string"
+              },
+              "links_added_count": {
+                "default": 0,
+                "title": "Links Added Count",
+                "type": "integer"
+              },
+              "cta_added_count": {
+                "default": 0,
+                "title": "Cta Added Count",
+                "type": "integer"
+              },
+              "posts_touched_count": {
+                "default": 0,
+                "title": "Posts Touched Count",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "title": "LinkingRun",
+            "type": "object",
+            "x-sdl": "entity"
+          }
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/LinkingRun"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Total"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "LinkingRunList",
+        "type": "object",
+        "x-sdl": "entity-list"
+      },
+      "event": "internal-linking-engine.list_linking_runs",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "internal-linking-engine"
+    }
+  ],
+  "signals": [],
+  "schedules": [],
+  "required_scopes": [],
+  "icon_size_bytes": 308,
+  "lifecycle": {
+    "health_check": {
+      "interval_sec": 60
+    }
+  },
+  "panels": [
+    {
+      "panel_id": "ile_nav",
+      "slot": "left",
+      "title": "Internal Linking Engine",
+      "tree": {},
+      "icon": "Link",
+      "refresh": "manual",
+      "center_overlay": false
+    },
+    {
+      "panel_id": "ile",
+      "slot": "center",
+      "title": "Internal Linking Engine",
+      "tree": {},
+      "icon": "Link",
+      "refresh": "manual",
+      "center_overlay": true
+    }
+  ]
+}

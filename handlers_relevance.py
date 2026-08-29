@@ -24,6 +24,7 @@ import relevance as relevance_lib
     event="internal-linking-engine.get_relevant_targets",
 )
 async def get_relevant_targets(ctx, params: GetRelevantTargetsParams) -> ActionResult:
+    """Score already-indexed candidates for link-worthiness against one source post."""
     source_doc = await storage.find_indexed_post(ctx, params.site_id, params.source_post_id)
     if not source_doc:
         return ActionResult.error(

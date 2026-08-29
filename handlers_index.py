@@ -27,6 +27,7 @@ import storage
     event="internal-linking-engine.index_posts",
 )
 async def index_posts(ctx, params: IndexPostsParams) -> ActionResult:
+    """Cache/refresh metadata for a batch of posts already fetched via wordpress-hub."""
     now = storage.now_iso()
     saved: list[IndexedPost] = []
     for post in params.posts:
@@ -70,6 +71,7 @@ async def index_posts(ctx, params: IndexPostsParams) -> ActionResult:
     event="internal-linking-engine.get_site_index_status",
 )
 async def get_site_index_status(ctx, params: GetSiteIndexStatusParams) -> ActionResult:
+    """One-glance index health for a site: post count by language and last-indexed time."""
     rows = await storage.list_indexed_posts(ctx, params.site_id)
     by_lang: dict[str, int] = {}
     last_indexed = ""

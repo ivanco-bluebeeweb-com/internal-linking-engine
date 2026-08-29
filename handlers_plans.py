@@ -45,6 +45,7 @@ def _count_uniquely(raw_content: str, substring: str) -> int:
     event="internal-linking-engine.preview_internal_links",
 )
 async def preview_internal_links(ctx, params: PreviewInternalLinksParams) -> ActionResult:
+    """Validate proposed insertions against exact-once substring match; never writes anything."""
     settings_doc = await storage.find_settings(ctx, params.site_id)
     if not settings_doc or not settings_doc.data.get("enabled"):
         return ActionResult.error(
@@ -136,6 +137,7 @@ async def preview_internal_links(ctx, params: PreviewInternalLinksParams) -> Act
     event="internal-linking-engine.get_linking_plan",
 )
 async def get_linking_plan(ctx, params: GetLinkingPlanParams) -> ActionResult:
+    """Read one linking plan in full, for review before applying."""
     doc = await ctx.store.get(storage.PLANS_COLLECTION, params.plan_id)
     if not doc:
         return ActionResult.error("That linking plan does not exist.", retryable=False, code="PLAN_NOT_FOUND")
@@ -150,6 +152,7 @@ async def get_linking_plan(ctx, params: GetLinkingPlanParams) -> ActionResult:
     event="internal-linking-engine.list_linking_plans",
 )
 async def list_linking_plans(ctx, params: ListLinkingPlansParams) -> ActionResult:
+    """List linking plans, optionally filtered by site and/or status."""
     page = await ctx.store.query(storage.PLANS_COLLECTION, order_by="-created_at", limit=200)
     rows = [doc.data | {"id": doc.id} for doc in page.data]
     if params.site_id:
@@ -175,6 +178,7 @@ async def list_linking_plans(ctx, params: ListLinkingPlansParams) -> ActionResul
     event="internal-linking-engine.apply_internal_links",
 )
 async def apply_internal_links(ctx, params: ApplyInternalLinksParams) -> ActionResult:
+    """Record that Webbee already wrote a pending plan's diffs to the real site."""
     doc = await ctx.store.get(storage.PLANS_COLLECTION, params.plan_id)
     if not doc:
         return ActionResult.error("That linking plan does not exist.", retryable=False, code="PLAN_NOT_FOUND")
@@ -209,6 +213,7 @@ async def apply_internal_links(ctx, params: ApplyInternalLinksParams) -> ActionR
     event="internal-linking-engine.reject_linking_plan",
 )
 async def reject_linking_plan(ctx, params: RejectLinkingPlanParams) -> ActionResult:
+    """Reject a pending plan without applying it -- pure status change, nothing was written."""
     doc = await ctx.store.get(storage.PLANS_COLLECTION, params.plan_id)
     if not doc:
         return ActionResult.error("That linking plan does not exist.", retryable=False, code="PLAN_NOT_FOUND")
@@ -235,6 +240,7 @@ async def reject_linking_plan(ctx, params: RejectLinkingPlanParams) -> ActionRes
     event="internal-linking-engine.rollback_linking_run",
 )
 async def rollback_linking_run(ctx, params: RollbackLinkingRunParams) -> ActionResult:
+    """Return original find/replace pairs to undo an applied plan; Webbee performs the actual write."""
     doc = await ctx.store.get(storage.PLANS_COLLECTION, params.plan_id)
     if not doc:
         return ActionResult.error("That linking plan does not exist.", retryable=False, code="PLAN_NOT_FOUND")
@@ -258,6 +264,7 @@ async def rollback_linking_run(ctx, params: RollbackLinkingRunParams) -> ActionR
     event="internal-linking-engine.list_linking_runs",
 )
 async def list_linking_runs(ctx, params: ListLinkingRunsParams) -> ActionResult:
+    """List the linking runs dashboard, one row per plan lifecycle event, newest first."""
     page = await ctx.store.query(storage.RUNS_COLLECTION, order_by="-created_at", limit=params.limit)
     rows = [doc.data | {"id": doc.id} for doc in page.data]
     if params.site_id:
