@@ -1,8 +1,16 @@
 """Chat functions: Content Indexer -- caches per-post metadata for relevance
 scoring. This app never fetches posts itself; Webbee fetches via
 wordpress-hub (list_posts/get_post_content/get_post_meta/extract_links) and
-passes the metadata in (see app.py docstring for why)."""
+passes the metadata in (see app.py docstring for why).
+
+Plan §4 step 1 (incremental re-index): every indexed row carries a
+content_hash of the post's raw content. Re-indexing an UNCHANGED post is a
+cheap no-op that reports skipped, so a scheduled scan only pays for what
+actually moved since last time.
+"""
 from __future__ import annotations
+
+import hashlib
 
 from imperal_sdk import ActionResult
 
@@ -12,6 +20,22 @@ from schemas import (
     IndexedPost, IndexedPostList,
 )
 import storage
+
+
+def _content_hash(post: dict) -> str:
+    """Hash of everything the index stores about a post -- if it matches the
+    stored row, nothing about this post changed since the last index pass."""
+    payload = "|".join([
+        str(post.get("title", "")),
+        str(post.get("excerpt", "")),
+        str(post.get("lang", "")),
+        str(post.get("product_type", "")),
+        ",".join(post.get("categories", []) or []),
+        ",".join(post.get("tags", []) or []),
+        ",".join(post.get("outbound_link_urls", []) or []),
+        hashlib.sha256((post.get("raw_content_sample", "") or "").encode("utf-8")).hexdigest()[:16],
+    ])
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
 
 
 @chat.function(
@@ -27,12 +51,23 @@ import storage
     event="internal-linking-engine.index_posts",
 )
 async def index_posts(ctx, params: IndexPostsParams) -> ActionResult:
-    """Cache/refresh metadata for a batch of posts already fetched via wordpress-hub."""
+    """Cache/refresh metadata for a batch of posts already fetched via wordpress-hub.
+
+    Incremental (plan §4 step 1): a post whose content_hash matches the stored
+    row is skipped -- no write, and the summary says so -- so repeated scans
+    only pay for posts that actually changed."""
     now = storage.now_iso()
     saved: list[IndexedPost] = []
+    skipped_unchanged = 0
     for post in params.posts:
         post_id = str(post.get("post_id", ""))
         if not post_id:
+            continue
+        new_hash = _content_hash(post)
+        existing = await storage.find_indexed_post(ctx, params.site_id, post_id)
+        if existing and existing.data.get("content_hash") == new_hash:
+            skipped_unchanged += 1
+            saved.append(IndexedPost(id=existing.id, **existing.data))
             continue
         data = {
             "site_id": params.site_id,
@@ -47,9 +82,10 @@ async def index_posts(ctx, params: IndexPostsParams) -> ActionResult:
             "lang": post.get("lang", ""),
             "excerpt": post.get("excerpt", ""),
             "outbound_link_urls": post.get("outbound_link_urls", []) or [],
+            "content_sample": (post.get("raw_content_sample", "") or "")[:2000],
+            "content_hash": new_hash,
             "last_indexed_at": now,
         }
-        existing = await storage.find_indexed_post(ctx, params.site_id, post_id)
         if existing:
             await ctx.store.update(storage.INDEX_COLLECTION, existing.id, data)
             saved.append(IndexedPost(id=existing.id, **data))
@@ -57,9 +93,12 @@ async def index_posts(ctx, params: IndexPostsParams) -> ActionResult:
             doc = await ctx.store.create(storage.INDEX_COLLECTION, data)
             saved.append(IndexedPost(id=doc.id, **data))
 
+    summary = f"Indexed {len(saved)} post(s) for '{params.site_id}'"
+    if skipped_unchanged:
+        summary += f" ({skipped_unchanged} unchanged, skipped)"
     return ActionResult.success(
         IndexedPostList(items=saved),
-        summary=f"Indexed {len(saved)} post(s) for '{params.site_id}'.",
+        summary=summary + ".",
     )
 
 

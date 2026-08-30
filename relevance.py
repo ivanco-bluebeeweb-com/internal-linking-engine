@@ -30,12 +30,32 @@ def _terms(text: str) -> set[str]:
     return {w for w in words if w not in _STOPWORDS}
 
 
-def score_candidate(source: dict, candidate: dict) -> tuple[float, str]:
+# Business-relevance boost (plan §5 step 4): on an e-commerce site, a link
+# toward a product/catalog-type page is worth more than a random blog-to-blog
+# link, because that's where conversions live. A candidate is treated as
+# business-priority when it carries a product_type or its URL matches one of
+# the site's configured CTA targets.
+BUSINESS_PRIORITY_BOOST = 2.0
+
+
+def is_business_priority(candidate: dict, cta_target_urls: set[str]) -> bool:
+    if (candidate.get("product_type") or "").strip():
+        return True
+    url = (candidate.get("url") or "").rstrip("/")
+    return any(url and url == t.rstrip("/") for t in cta_target_urls)
+
+
+def score_candidate(source: dict, candidate: dict, *,
+                    cta_target_urls: set[str] | None = None) -> tuple[float, str]:
     """Score one candidate target post against one source post.
     Returns (score, human-readable reason). Caller is responsible for the
     hard language filter and self-exclusion before calling this."""
     score = 0.0
     reasons: list[str] = []
+
+    if is_business_priority(candidate, cta_target_urls or set()):
+        score += BUSINESS_PRIORITY_BOOST
+        reasons.append("business priority (product/catalog target)")
 
     src_cats = set(source.get("categories") or [])
     cand_cats = set(candidate.get("categories") or [])
@@ -67,14 +87,20 @@ def score_candidate(source: dict, candidate: dict) -> tuple[float, str]:
     return score, "; ".join(reasons) if reasons else "no strong overlap"
 
 
-def rank_targets(source: dict, candidates: list[dict], *, max_targets: int = 5) -> list[dict]:
+def rank_targets(source: dict, candidates: list[dict], *, max_targets: int = 5,
+                 cta_target_urls: set[str] | None = None,
+                 already_linked_ids: set[str] | None = None,
+                 already_linked_urls: set[str] | None = None) -> list[dict]:
     """Rank candidates for one source post. Hard filters applied here:
     - never suggest the post itself
     - never cross languages when both source and candidate have a lang set
+    - drop candidates the source already links to (plan §5 filter: no dupes)
     - drop zero-score candidates (no meaningful relevance signal)
     """
     src_id = source.get("post_id")
     src_lang = (source.get("lang") or "").strip()
+    linked_ids = already_linked_ids or set()
+    linked_urls = {(u or "").rstrip("/") for u in (already_linked_urls or set())}
 
     scored: list[dict] = []
     for cand in candidates:
@@ -83,7 +109,12 @@ def rank_targets(source: dict, candidates: list[dict], *, max_targets: int = 5) 
         cand_lang = (cand.get("lang") or "").strip()
         if src_lang and cand_lang and src_lang != cand_lang:
             continue  # hard language isolation -- never mix RU/RO etc.
-        s, reason = score_candidate(source, cand)
+        if cand.get("post_id") in linked_ids:
+            continue  # source already links to this target -- never duplicate
+        cand_url = (cand.get("url") or "").rstrip("/")
+        if cand_url and cand_url in linked_urls:
+            continue  # same guard by URL, for targets not tracked by id
+        s, reason = score_candidate(source, cand, cta_target_urls=cta_target_urls)
         if s <= 0:
             continue
         scored.append({

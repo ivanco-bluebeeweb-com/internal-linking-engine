@@ -7,6 +7,15 @@ site's content itself -- it always returns exact find/replace instructions
 for Webbee to hand to wordpress-hub.replace_post_content_text (see app.py
 docstring for the full "why"). apply_internal_links only records that
 Webbee already did the writing; it does not perform it.
+
+Plan §6 guardrails implemented here:
+- preview drops any proposed insertion whose (source, target) pair is already
+  a live link on the site (link graph + the post's own hrefs), and dedupes
+  repeated targets within one proposal ("не более 1 ссылки от A на B");
+- apply/batch record every written diff as a live link-graph edge and bump
+  confirmed_applies_count; once a review_first site crosses its
+  full_auto_threshold the engine auto-promotes it to full_auto (§4 step 5);
+- rollback flips those edges back to reverted so history stays auditable.
 """
 from __future__ import annotations
 
@@ -19,6 +28,7 @@ from schemas import (
     ListLinkingRunsParams,
     LinkingPlan, LinkingPlanList, LinkingRun, LinkingRunList,
 )
+import link_graph
 import storage
 
 
@@ -69,21 +79,38 @@ async def preview_internal_links(ctx, params: PreviewInternalLinksParams) -> Act
         link_suggestions_in = proposal.get("link_suggestions", []) or []
         cta_in = proposal.get("cta_suggestion")
 
+        # Plan §5 guardrails: never propose a second link to a target this post
+        # already links to -- from the live link graph and/or the post's own hrefs.
+        existing_ids = await link_graph.linked_target_ids(ctx, params.site_id, post_id)
+        existing_urls = {u.rstrip("/") for u in link_graph.urls_in_html(raw)}
+
         surviving_links: list[dict] = []
+        seen_targets: set[str] = set()
         snapshot: dict = {}
         for ls in link_suggestions_in[:max_links]:
             find = ls.get("find_exact_substring", "")
             count = _count_uniquely(raw, find)
             if count != 1:
                 continue  # exact-once contract -- drop, never guess
+            target_id = str(ls.get("target_post_id", "") or "")
+            target_url = (ls.get("target_url", "") or "").rstrip("/")
+            if target_id and (target_id in existing_ids or target_id in seen_targets):
+                continue  # already linked / duplicate A->B pair -- drop
+            if target_url and (target_url in existing_urls or target_url in {t.rstrip("/") for t in seen_targets}):
+                continue
             surviving_links.append(ls | {"match_count": count})
+            if target_id:
+                seen_targets.add(target_id)
+            if target_url:
+                seen_targets.add(target_url)
             snapshot[find] = find  # original text IS the find string (pre-insertion)
 
         surviving_cta = None
         if cta_in and max_cta > 0:
             find = cta_in.get("find_exact_substring", "")
             count = _count_uniquely(raw, find)
-            if count == 1:
+            cta_url = (cta_in.get("cta_url", "") or cta_in.get("target_url", "") or "").rstrip("/")
+            if count == 1 and (not cta_url or cta_url not in existing_urls):
                 surviving_cta = cta_in | {"match_count": count}
                 snapshot[find] = find
 
@@ -163,6 +190,49 @@ async def list_linking_plans(ctx, params: ListLinkingPlansParams) -> ActionResul
     return ActionResult.success(LinkingPlanList(items=items), summary=f"{len(items)} plan(s).")
 
 
+async def _record_plan_edges(ctx, data: dict) -> None:
+    """Plan §4: every written link/CTA insertion becomes a live edge in the
+    site's link graph, so future previews never propose a duplicate."""
+    for entry in data.get("entries", []) or []:
+        from_id = str(entry.get("post_id", ""))
+        for ls in entry.get("link_suggestions", []) or []:
+            await link_graph.record_edge(
+                ctx, site_id=data.get("site_id", ""), from_post_id=from_id,
+                to_post_id=str(ls.get("target_post_id", "") or ""),
+                target_url=ls.get("target_url", "") or "",
+                anchor_text=ls.get("find_exact_substring", "") or "",
+            )
+        cta = entry.get("cta_suggestion")
+        if cta:
+            await link_graph.record_edge(
+                ctx, site_id=data.get("site_id", ""), from_post_id=from_id,
+                to_post_id="",  # CTA targets are pages, not indexed posts
+                target_url=cta.get("cta_url", "") or cta.get("target_url", "") or "",
+                anchor_text=cta.get("find_exact_substring", "") or "",
+            )
+
+
+async def _bump_site_applies(ctx, site_id: str, increment: int) -> str | None:
+    """Increment confirmed_applies_count and auto-promote review_first ->
+    full_auto once the site crosses its own threshold (plan §4 step 5).
+    Returns the new mode if it changed, else None."""
+    if not site_id or increment <= 0:
+        return None
+    settings_doc = await storage.find_settings(ctx, site_id)
+    if not settings_doc:
+        return None
+    count = int(settings_doc.data.get("confirmed_applies_count", 0)) + increment
+    updates = {"confirmed_applies_count": count, "updated_at": storage.now_iso()}
+    promoted_to = None
+    threshold = int(settings_doc.data.get("full_auto_threshold", 10))
+    if settings_doc.data.get("mode") == "review_first" and count >= threshold:
+        updates["mode"] = "full_auto"
+        promoted_to = "full_auto"
+    await ctx.store.update(storage.SETTINGS_COLLECTION, settings_doc.id,
+                           settings_doc.data | updates)
+    return promoted_to
+
+
 @chat.function(
     "apply_internal_links",
     description=(
@@ -193,15 +263,14 @@ async def apply_internal_links(ctx, params: ApplyInternalLinksParams) -> ActionR
     if run:
         await ctx.store.update(storage.RUNS_COLLECTION, run.id, run.data | {"status": "applied"})
 
-    settings_doc = await storage.find_settings(ctx, doc.data.get("site_id", ""))
-    if settings_doc:
-        count = int(settings_doc.data.get("confirmed_applies_count", 0)) + 1
-        await ctx.store.update(storage.SETTINGS_COLLECTION, settings_doc.id, settings_doc.data | {
-            "confirmed_applies_count": count, "updated_at": storage.now_iso(),
-        })
+    await _record_plan_edges(ctx, data)
+    promoted_to = await _bump_site_applies(ctx, data.get("site_id", ""), 1)
 
     applied_n = len(params.applied_post_ids) or data.get("posts_touched_count", 0)
-    return ActionResult.success(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', params.plan_id)}", **data), summary=f"Plan {params.plan_id} applied ({applied_n} post(s) written).")
+    summary = f"Plan {params.plan_id} applied ({applied_n} post(s) written)."
+    if promoted_to:
+        summary += " Site crossed its full_auto threshold -- mode is now full_auto."
+    return ActionResult.success(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', params.plan_id)}", **data), summary=summary)
 
 
 @chat.function(
@@ -249,21 +318,22 @@ async def apply_internal_links_batch(ctx, params: ApplyInternalLinksBatchParams)
         run = await storage.find_run_by_plan(ctx, item.plan_id)
         if run:
             await ctx.store.update(storage.RUNS_COLLECTION, run.id, run.data | {"status": "applied"})
+        await _record_plan_edges(ctx, data)
         site_id = data.get("site_id", "")
         site_apply_counts[site_id] = site_apply_counts.get(site_id, 0) + 1
         updated.append(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', item.plan_id)}", **data))
 
+    promoted_sites: list[str] = []
     for site_id, increment in site_apply_counts.items():
-        settings_doc = await storage.find_settings(ctx, site_id)
-        if settings_doc:
-            count = int(settings_doc.data.get("confirmed_applies_count", 0)) + increment
-            await ctx.store.update(storage.SETTINGS_COLLECTION, settings_doc.id, settings_doc.data | {
-                "confirmed_applies_count": count, "updated_at": storage.now_iso(),
-            })
+        if await _bump_site_applies(ctx, site_id, increment):
+            promoted_sites.append(site_id)
 
+    summary = f"{len(updated)} explicitly listed plan(s) recorded as applied."
+    if promoted_sites:
+        summary += f" Site(s) crossed their full_auto threshold and are now full_auto: {', '.join(promoted_sites)}."
     return ActionResult.success(
         LinkingPlanList(items=updated),
-        summary=f"{len(updated)} explicitly listed plan(s) recorded as applied.",
+        summary=summary,
     )
 
 
@@ -316,6 +386,23 @@ async def rollback_linking_run(ctx, params: RollbackLinkingRunParams) -> ActionR
     run = await storage.find_run_by_plan(ctx, params.plan_id)
     if run:
         await ctx.store.update(storage.RUNS_COLLECTION, run.id, run.data | {"status": "rolled_back"})
+    # Plan §4: the links this plan wrote are no longer live -- flip their edges
+    # back to reverted so the link graph matches reality (history is kept).
+    for entry in doc.data.get("entries", []) or []:
+        from_id = str(entry.get("post_id", ""))
+        for ls in entry.get("link_suggestions", []) or []:
+            await link_graph.revert_edge(
+                ctx, site_id=doc.data.get("site_id", ""), from_post_id=from_id,
+                to_post_id=str(ls.get("target_post_id", "") or ""),
+                target_url=ls.get("target_url", "") or "",
+            )
+        cta = entry.get("cta_suggestion")
+        if cta:
+            await link_graph.revert_edge(
+                ctx, site_id=doc.data.get("site_id", ""), from_post_id=from_id,
+                to_post_id="",
+                target_url=cta.get("cta_url", "") or cta.get("target_url", "") or "",
+            )
     return ActionResult.success(LinkingPlan(id=doc.id, title=f"Plan for {data.get('domain', params.plan_id)}", **data), summary=f"Plan {params.plan_id} rolled back -- {len(data.get('entries', []))} post(s) to restore via wordpress-hub.")
 
 

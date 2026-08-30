@@ -93,6 +93,8 @@ class IndexedPost(sdl.Entity):
     lang: str = ""
     excerpt: str = ""
     outbound_link_urls: list[str] = Field(default_factory=list)
+    content_sample: str = ""  # bounded excerpt of raw content, for href-dedup checks
+    content_hash: str = ""    # plan §4 step 1: unchanged hash => re-index is a no-op
     last_indexed_at: str = ""
 
 
