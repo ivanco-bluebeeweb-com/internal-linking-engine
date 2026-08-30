@@ -299,3 +299,29 @@ class LinkingRunList(sdl.EntityList[LinkingRun]):
 class ListLinkingRunsParams(BaseModel):
     site_id: str = Field(default="", description="Optional site id filter; empty lists across all sites.")
     limit: int = Field(default=50, ge=1, le=200, description="Max rows to return.")
+
+
+# ---------------------------------------------------------------------------
+# Scan schedule (plan §7 -- autonomous nightly scans)
+# ---------------------------------------------------------------------------
+
+class LinkingSchedule(sdl.Entity):
+    """One site's autonomous linking-scan schedule (plan §7). The platform
+    cron line is frozen at registration; the chosen hour/days live in the
+    store so they can move without a redeploy (see scan_schedule.py)."""
+    site_id: str = ""
+    enabled: bool = False
+    hour: int = 4           # UTC hour the scan fires at
+    days: str = ""          # '1,3,5' style list; empty = every day
+    last_date: str = ""     # UTC date the scan last fired (dedup guard)
+
+
+class GetLinkingScheduleParams(BaseModel):
+    site_id: str = Field(..., description="Site id to read the linking-scan schedule for.")
+
+
+class SetLinkingScheduleParams(BaseModel):
+    site_id: str = Field(..., description="Site id whose linking-scan schedule to change.")
+    enabled: bool | None = Field(default=None, description="Turn the autonomous scan on (true) or off (false).")
+    hour: int | None = Field(default=None, ge=0, le=23, description="UTC hour to fire at (default 4 -- nobody edits articles at night).")
+    days: str | None = Field(default=None, description="Weekday list like '1,3,5' (1=Monday); empty string = every day.")
