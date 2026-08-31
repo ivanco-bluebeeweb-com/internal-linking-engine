@@ -25,6 +25,8 @@ class SiteSettings(sdl.Entity):
     """One site's Internal Linking Engine configuration. site_id matches the
     Sites Registry id/domain so both apps agree on identity without a
     translation table."""
+    id: str = ""
+    title: str = ""
     site_id: str = ""
     domain: str = ""
     enabled: bool = False
@@ -42,6 +44,8 @@ class SiteSettings(sdl.Entity):
 
 
 class SiteSettingsList(sdl.EntityList[SiteSettings]):
+    id: str = ""
+    title: str = ""
     pass
 
 
@@ -81,6 +85,7 @@ class IndexedPost(sdl.Entity):
     from data Webbee already fetched via wordpress-hub (list_posts/
     get_post_content/get_post_meta/extract_links) and passed in -- this app
     never fetches it itself (see app.py docstring)."""
+    id: str = ""
     site_id: str = ""
     post_id: str = ""
     title: str = ""
@@ -99,6 +104,8 @@ class IndexedPost(sdl.Entity):
 
 
 class IndexedPostList(sdl.EntityList[IndexedPost]):
+    id: str = ""
+    title: str = ""
     pass
 
 
@@ -137,6 +144,8 @@ class RelevanceMatch(BaseModel):
 
 
 class RelevanceMatchList(sdl.EntityList):
+    id: str = ""
+    title: str = ""
     items: list[RelevanceMatch] = []
 
 
@@ -189,6 +198,8 @@ class LinkingPlan(sdl.Entity):
     """One scan/preview run for a site -- the unit preview_internal_links
     creates and apply_internal_links/reject_linking_plan/rollback_linking_run
     transition through PLAN_STATUS_CHOICES."""
+    id: str = ""
+    title: str = ""
     site_id: str = ""
     domain: str = ""
     created_at: str = ""
@@ -200,6 +211,8 @@ class LinkingPlan(sdl.Entity):
 
 
 class LinkingPlanList(sdl.EntityList[LinkingPlan]):
+    id: str = ""
+    title: str = ""
     pass
 
 
@@ -282,6 +295,8 @@ class RollbackLinkingRunParams(BaseModel):
 class LinkingRun(sdl.Entity):
     """One dashboard row: mirrors a LinkingPlan's lifecycle transitions for
     the at-a-glance runs table (§10 of the plan)."""
+    id: str = ""
+    title: str = ""
     site_id: str = ""
     domain: str = ""
     plan_id: str = ""
@@ -293,6 +308,8 @@ class LinkingRun(sdl.Entity):
 
 
 class LinkingRunList(sdl.EntityList[LinkingRun]):
+    id: str = ""
+    title: str = ""
     pass
 
 
@@ -309,6 +326,8 @@ class LinkingSchedule(sdl.Entity):
     """One site's autonomous linking-scan schedule (plan §7). The platform
     cron line is frozen at registration; the chosen hour/days live in the
     store so they can move without a redeploy (see scan_schedule.py)."""
+    id: str = ""
+    title: str = ""
     site_id: str = ""
     enabled: bool = False
     hour: int = 4           # UTC hour the scan fires at
